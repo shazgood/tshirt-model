@@ -1,39 +1,669 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
-  <meta charset="UTF-8">
-  <title>3D T-Shirt Preview</title>
-  <style>
-    body { margin: 0; overflow: hidden; background: #111; }
-    canvas { display: block; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Threadify 3D T-Shirt Customizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            overflow: hidden;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #2a2a2a; }
+        ::-webkit-scrollbar-thumb { background: #4a4a4a; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6a6a6a; }
+
+        .main-grid { 
+            display: grid; 
+            grid-template-columns: 1fr;
+            height: 100vh; 
+        }
+        @media (min-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 320px 1fr 360px;
+            }
+        }
+        .panel { 
+            background-color: #212121;
+            border-color: #333;
+            display: flex;
+            flex-direction: column;
+        }
+        .left-panel { 
+            border-right: 1px solid;
+            border-image: linear-gradient(to bottom, #212121, #D4AF37, #212121) 1;
+        }
+        .right-panel { 
+            border-left: 1px solid;
+            border-image: linear-gradient(to bottom, #212121, #D4AF37, #212121) 1;
+        }
+        
+        .preview-area {
+            background: #1a1a1a;
+            position: relative;
+            overflow: hidden;
+            min-height: 50vh;
+        }
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+            z-index: 5;
+            position: relative;
+        }
+        #canvas-container:active {
+            cursor: grabbing;
+        }
+        #particle-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        #footer-credit {
+            position: absolute;
+            bottom: 10px;
+            right: 15px;
+            font-size: 0.75rem;
+            color: #555;
+            z-index: 10;
+        }
+
+        .section-title {
+            font-weight: 500; 
+            color: #f0f0f0; 
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem; 
+            border-bottom: 1px solid;
+            border-image: linear-gradient(to right, #D4AF37, #555) 1;
+        }
+        .option-button, .control-button {
+            background-color: #2c2c2c; 
+            border: 1px solid #444;
+            transition: all 0.2s ease-in-out; 
+            border-radius: 0.5rem;
+        }
+        .option-button:hover, .control-button:hover { 
+            background-color: #383838; 
+            border-color: #D4AF37; 
+        }
+        .option-button.selected, .control-button.active {
+            border-color: #D4AF37;
+            background-color: #404040;
+            color: #ffffff; 
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.2);
+        }
+        .color-swatch {
+            width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
+            transition: all 0.2s ease; 
+            border: 2px solid #444;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .color-swatch:hover { transform: scale(1.1); }
+        .color-swatch.selected {
+            border-color: #D4AF37;
+            box-shadow: 0 0 0 2px #212121, 0 0 0 4px #D4AF37;
+        }
+        
+        #color-picker-wrapper {
+            width: 36px; height: 36px; border-radius: 50%;
+            overflow: hidden; border: 2px solid #444; cursor: pointer;
+            background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);
+        }
+        #color-picker {
+            opacity: 0;
+            width: 100%; height: 100%;
+            cursor: pointer;
+        }
+
+        .file-input-button {
+            background-color: rgba(0,0,0,0.2); 
+            border: 2px dashed #555;
+            color: #9ca3af; cursor: pointer; transition: all 0.2s ease;
+        }
+        .file-input-button:hover {
+            background-color: rgba(0,0,0,0.3); 
+            border-color: #D4AF37; 
+            color: #d1d5db;
+        }
+
+        /* Slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, #555, #888);
+            border-radius: 3px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #f0f0f0;
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid #333;
+            box-shadow: 0 0 5px rgba(255,255,255,0.3);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 16px;
+            background: #f0f0f0;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        .control-group {
+            display: grid;
+            grid-template-columns: 80px 1fr 50px;
+            align-items: center;
+            gap: 1rem;
+        }
+    </style>
 </head>
-<body>
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
-<script>
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  document.body.appendChild(renderer.domElement);
+<body class="bg-gray-900 text-gray-200">
 
-  const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
-  scene.add(light);
+    <div id="app" class="main-grid">
+        <!-- Left Panel: Brand & Upload -->
+        <aside class="panel left-panel p-6 md:p-8">
+            <header class="mb-10 text-center">
+                <img src="https://raw.githubusercontent.com/shazgood/tshirt-model/main/logo.png" alt="Threadify by Utkarsh Logo" class="w-48 mx-auto">
+            </header>
+            <div class="flex-grow">
+                <h2 class="section-title text-xl">Upload Your Art</h2>
+                <label for="design-upload" class="file-input-button w-full h-48 flex flex-col items-center justify-center rounded-lg text-center p-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <span class="font-medium">Click to upload</span>
+                    <span id="file-name" class="text-xs text-gray-500 mt-1 truncate w-full max-w-full px-2">PNG, JPG, SVG</span>
+                </label>
+                <input type="file" id="design-upload" class="hidden" accept="image/png, image/jpeg, image/svg+xml">
+            </div>
+        </aside>
 
-  const loader = new THREE.GLTFLoader();
-  loader.load('tshirt.glb', function (gltf) {
-    scene.add(gltf.scene);
-    camera.position.z = 2;
-    animate();
-  }, undefined, function (error) {
-    console.error(error);
-  });
+        <!-- Center: 3D Preview Area -->
+        <main class="preview-area">
+            <canvas id="particle-canvas"></canvas>
+            <div id="canvas-container"></div>
+            <div id="footer-credit">@ThreadifybyUtkarsh2025</div>
+        </main>
 
-  function animate() {
-    requestAnimationFrame(animate);
-    renderer.render(scene, camera);
-  }
-</script>
+        <!-- Right Panel: Customization Controls -->
+        <aside class="panel right-panel p-6 md:p-8 overflow-y-auto">
+            <div id="customization-panel" class="space-y-8">
+                <!-- T-Shirt Color -->
+                <section>
+                    <h2 class="section-title text-xl">Shirt Color</h2>
+                    <div id="color-selector" class="flex items-center gap-4 flex-wrap">
+                        <div id="color-picker-wrapper" title="Custom Color"><input type="color" id="color-picker" value="#ffffff"></div>
+                        <div class="color-swatch selected" data-color="#ffffff" style="background-color: #ffffff;" title="White"></div>
+                        <div class="color-swatch" data-color="#d1d5db" style="background-color: #d1d5db;" title="Light Gray"></div>
+                        <div class="color-swatch" data-color="#4b5563" style="background-color: #4b5563;" title="Charcoal"></div>
+                        <div class="color-swatch" data-color="#111827" style="background-color: #111827;" title="Black"></div>
+                        <div class="color-swatch" data-color="#991b1b" style="background-color: #991b1b;" title="Maroon"></div>
+                        <div class="color-swatch" data-color="#1e40af" style="background-color: #1e40af;" title="Royal Blue"></div>
+                        <div class="color-swatch" data-color="#166534" style="background-color: #166534;" title="Forest Green"></div>
+                    </div>
+                </section>
+
+                <!-- Fabric -->
+                <section>
+                    <h2 class="section-title text-xl">Fabric Texture</h2>
+                    <div id="fabric-selector" class="space-y-3">
+                        <button class="option-button selected w-full p-4 text-left" data-fabric="smooth"><span class="font-semibold text-base">Smooth Cotton</span></button>
+                        <button class="option-button w-full p-4 text-left" data-fabric="heather"><span class="font-semibold text-base">Heather Blend</span></button>
+                    </div>
+                </section>
+            </div>
+            
+            <!-- Logo Editor Panel (Initially Hidden) -->
+            <div id="logo-editor-panel" class="hidden space-y-8">
+                <section id="logo-controls">
+                    <h2 class="section-title text-xl">Logo Editor</h2>
+                    <div class="space-y-4">
+                        <!-- Interactive Controls Info -->
+                        <div>
+                            <p class="text-sm font-medium text-gray-300 mb-2">Transform Logo</p>
+                            <p class="text-xs text-gray-500">Click and drag the logo on the T-shirt to move it. Use the corners of the selection box to resize and rotate.</p>
+                        </div>
+
+                         <!-- Brightness -->
+                        <div class="control-group">
+                            <label for="logo-brightness" class="text-sm font-medium text-gray-300">Brightness</label>
+                            <input type="range" id="logo-brightness" min="0" max="200" step="1" value="100">
+                             <span id="brightness-value" class="text-sm text-gray-400 text-right">100%</span>
+                        </div>
+                         <!-- Contrast -->
+                        <div class="control-group">
+                            <label for="logo-contrast" class="text-sm font-medium text-gray-300">Contrast</label>
+                            <input type="range" id="logo-contrast" min="0" max="200" step="1" value="100">
+                             <span id="contrast-value" class="text-sm text-gray-400 text-right">100%</span>
+                        </div>
+                        <!-- Filters -->
+                        <div>
+                            <p class="text-sm font-medium text-gray-300 mb-2">Filters & Effects</p>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="grayscale-btn" class="control-button p-2 text-sm">Monotone</button>
+                                <button id="sharpen-btn" class="control-button p-2 text-sm">Sharpen</button>
+                                <button id="flip-x-btn" class="control-button p-2 text-sm">Flip Horizontal</button>
+                                <button id="flip-y-btn" class="control-button p-2 text-sm">Flip Vertical</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Import maps for Three.js modules -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { DecalGeometry } from 'three/addons/geometries/DecalGeometry.js';
+        import { TransformControls } from 'three/addons/controls/TransformControls.js';
+
+
+        // --- App State & Core Variables ---
+        let scene, camera, renderer, controls;
+        let tshirtModel = null;
+        let decalMesh = null;
+        let originalLogoImage = null; // Store the original uploaded image
+        let transformControls;
+
+        const canvasContainer = document.getElementById('canvas-container');
+        const loader = new GLTFLoader();
+        const textureLoader = new THREE.TextureLoader();
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let currentDecalPosition = new THREE.Vector3(0, 0.1, 0.25);
+
+        const state = {
+            color: '#ffffff',
+            fabricRoughness: 0.8,
+            logoTexture: null,
+            logoBrightness: 100,
+            logoContrast: 100,
+            logoGrayscale: false,
+            logoFlipX: 1,
+            logoFlipY: 1
+        };
+
+        // --- DOM Elements ---
+        const designUploadInput = document.getElementById('design-upload');
+        const fileNameDisplay = document.getElementById('file-name');
+        const colorSelector = document.getElementById('color-selector');
+        const colorPicker = document.getElementById('color-picker');
+        const fabricSelector = document.getElementById('fabric-selector');
+        const customizationPanel = document.getElementById('customization-panel');
+        const logoEditorPanel = document.getElementById('logo-editor-panel');
+        const logoBrightnessSlider = document.getElementById('logo-brightness');
+        const logoContrastSlider = document.getElementById('logo-contrast');
+        const grayscaleBtn = document.getElementById('grayscale-btn');
+        const sharpenBtn = document.getElementById('sharpen-btn');
+        const flipXBtn = document.getElementById('flip-x-btn');
+        const flipYBtn = document.getElementById('flip-y-btn');
+        
+        // --- Initialization ---
+        init();
+        animate();
+        setupEventListeners();
+        initParticles();
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000);
+            camera.position.set(0, 0.5, 2.5);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            canvasContainer.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 5, 5);
+            scene.add(directionalLight);
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight2.position.set(-5, 5, -5);
+            scene.add(directionalLight2);
+            const rimLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            rimLight.position.set(0, 1, -5);
+            scene.add(rimLight);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.1;
+            controls.enablePan = false;
+            controls.minDistance = 1;
+            controls.maxDistance = 5;
+            controls.target.set(0, 0.3, 0);
+
+            // --- Transform Controls for Decal ---
+            transformControls = new TransformControls(camera, renderer.domElement);
+            transformControls.addEventListener('dragging-changed', (event) => {
+                controls.enabled = !event.value;
+            });
+            transformControls.showY = false; // Disable up/down movement for simplicity
+            scene.add(transformControls);
+
+
+            const modelUrl = 'https://raw.githubusercontent.com/shazgood/tshirt-model/main/t_shirt.glb';
+            loader.load(modelUrl, (gltf) => {
+                tshirtModel = gltf.scene;
+                tshirtModel.scale.set(1, 1, 1);
+                tshirtModel.position.set(0, -1.0, 0); 
+                tshirtModel.rotation.y = Math.PI / 2;
+
+                tshirtModel.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        child.material = new THREE.MeshStandardMaterial({
+                            color: new THREE.Color(state.color),
+                            metalness: 0.1,
+                            roughness: state.fabricRoughness
+                        });
+                    }
+                });
+                scene.add(tshirtModel);
+            }, undefined, (error) => {
+                console.error('An error occurred while loading the model:', error);
+                // Use a less intrusive error message
+                const errorDiv = document.createElement('div');
+                errorDiv.innerHTML = `
+                    <div style="position:absolute; top:10px; left:10px; padding:10px; background: #ef4444; color: white; border-radius: 5px; z-index: 100;">
+                        <strong>Error:</strong> Could not load 3D model.
+                    </div>
+                `;
+                document.body.appendChild(errorDiv);
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // --- Update Functions ---
+        function updateShirtMaterial() {
+            if (!tshirtModel) return;
+            tshirtModel.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    child.material.color.set(state.color);
+                    child.material.roughness = state.fabricRoughness;
+                    child.material.needsUpdate = true;
+                }
+            });
+        }
+        
+        function applyImageFiltersAndCreateDecal() {
+            if (!originalLogoImage) return;
+
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = originalLogoImage.width;
+            canvas.height = originalLogoImage.height;
+
+            let filterString = '';
+            filterString += `brightness(${state.logoBrightness}%) `;
+            filterString += `contrast(${state.logoContrast}%) `;
+            if (state.logoGrayscale) filterString += 'grayscale(100%) ';
+            
+            ctx.filter = filterString;
+            
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.scale(state.logoFlipX, state.logoFlipY);
+            ctx.drawImage(originalLogoImage, -canvas.width / 2, -canvas.height / 2);
+
+            const newTexture = new THREE.CanvasTexture(canvas);
+            newTexture.needsUpdate = true;
+            newTexture.flipY = false; // GLTF models often don't need this flipped
+            
+            if (decalMesh && decalMesh.material.map) {
+                decalMesh.material.map.dispose(); // Dispose old texture
+                decalMesh.material.map = newTexture;
+            } else {
+                 createDecal(newTexture);
+            }
+        }
+
+        function createDecal(texture) {
+            let decalTargetMesh = null;
+            if (tshirtModel) {
+                tshirtModel.traverse((child) => {
+                    if (child.isMesh) {
+                        if (!decalTargetMesh || child.geometry.boundingSphere.radius > decalTargetMesh.geometry.boundingSphere.radius) {
+                            decalTargetMesh = child;
+                        }
+                    }
+                });
+            }
+
+            if (!decalTargetMesh) return;
+
+            if (decalMesh) {
+                transformControls.detach();
+                scene.remove(decalMesh);
+                decalMesh.geometry.dispose();
+                decalMesh.material.dispose();
+            }
+
+            const orientation = new THREE.Euler();
+            const size = new THREE.Vector3(10, 10, 10); // Large size, will be controlled by transform controls scale
+
+            // Use MeshBasicMaterial for the decal to avoid lighting effects
+            const decalMaterial = new THREE.MeshBasicMaterial({
+                map: texture,
+                transparent: true,
+                depthTest: true,
+                depthWrite: false,
+                polygonOffset: true,
+                polygonOffsetFactor: -4, 
+            });
+
+            const decalGeometry = new DecalGeometry(decalTargetMesh, currentDecalPosition, orientation, size);
+            decalMesh = new THREE.Mesh(decalGeometry, decalMaterial);
+            
+            // Set initial scale and rotation
+            decalMesh.scale.set(0.15, 0.15, 0.15);
+            
+            scene.add(decalMesh);
+            transformControls.attach(decalMesh);
+        }
+
+        // --- Event Handling ---
+        function setupEventListeners() {
+            window.addEventListener('resize', onWindowResize, false);
+
+            colorSelector.addEventListener('click', (event) => {
+                const swatch = event.target.closest('.color-swatch');
+                if (swatch) {
+                    state.color = swatch.dataset.color;
+                    updateShirtMaterial();
+                    document.querySelector('.color-swatch.selected')?.classList.remove('selected');
+                    swatch.classList.add('selected');
+                }
+            });
+
+            colorPicker.addEventListener('input', (event) => {
+                state.color = event.target.value;
+                updateShirtMaterial();
+                const selectedSwatch = document.querySelector('.color-swatch.selected');
+                if (selectedSwatch) selectedSwatch.classList.remove('selected');
+            });
+
+            fabricSelector.addEventListener('click', (event) => {
+                const button = event.target.closest('.option-button');
+                if (button) {
+                    state.fabricRoughness = button.dataset.fabric === 'smooth' ? 0.8 : 0.4;
+                    updateShirtMaterial();
+                    document.querySelector('#fabric-selector .selected')?.classList.remove('selected');
+                    button.classList.add('selected');
+                }
+            });
+
+            designUploadInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            originalLogoImage = img;
+                            applyImageFiltersAndCreateDecal();
+                        };
+                        img.src = e.target.result;
+                        
+                        customizationPanel.classList.add('hidden');
+                        logoEditorPanel.classList.remove('hidden');
+                        fileNameDisplay.textContent = file.name;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+            
+            // Logo Editor Controls
+            logoBrightnessSlider.addEventListener('input', (e) => {
+                state.logoBrightness = parseInt(e.target.value, 10);
+                document.getElementById('brightness-value').textContent = `${state.logoBrightness}%`;
+                applyImageFiltersAndCreateDecal();
+            });
+            logoContrastSlider.addEventListener('input', (e) => {
+                state.logoContrast = parseInt(e.target.value, 10);
+                document.getElementById('contrast-value').textContent = `${state.logoContrast}%`;
+                applyImageFiltersAndCreateDecal();
+            });
+            grayscaleBtn.addEventListener('click', () => {
+                state.logoGrayscale = !state.logoGrayscale;
+                grayscaleBtn.classList.toggle('active');
+                applyImageFiltersAndCreateDecal();
+            });
+            sharpenBtn.addEventListener('click', () => {
+                state.logoContrast = Math.min(200, state.logoContrast + 10);
+                logoContrastSlider.value = state.logoContrast;
+                document.getElementById('contrast-value').textContent = `${state.logoContrast}%`;
+                applyImageFiltersAndCreateDecal();
+            });
+            flipXBtn.addEventListener('click', () => {
+                state.logoFlipX *= -1;
+                applyImageFiltersAndCreateDecal();
+            });
+            flipYBtn.addEventListener('click', () => {
+                state.logoFlipY *= -1;
+                applyImageFiltersAndCreateDecal();
+            });
+
+            // Raycasting for initial decal placement
+            canvasContainer.addEventListener('pointerdown', (event) => {
+                if (decalMesh && event.target.closest('canvas')) {
+                    // If a decal exists, the transform controls will handle interaction.
+                    // We don't want to re-place the decal on every click.
+                    return;
+                }
+                
+                const rect = renderer.domElement.getBoundingClientRect();
+                mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+                
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObject(tshirtModel, true);
+
+                if (intersects.length > 0 && state.logoTexture) {
+                    currentDecalPosition.copy(intersects[0].point);
+                    createDecal(state.logoTexture);
+                }
+            });
+        }
+
+        function onWindowResize() {
+            camera.aspect = canvasContainer.clientWidth / canvasContainer.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+        }
+
+        // --- Background Particle Effect ---
+        function initParticles() {
+            const particleCanvas = document.getElementById('particle-canvas');
+            const ctx = particleCanvas.getContext('2d');
+            let particles = [];
+            
+            function resizeCanvas() {
+                particleCanvas.width = canvasContainer.clientWidth;
+                particleCanvas.height = canvasContainer.clientHeight;
+            }
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            class Particle {
+                constructor() {
+                    this.x = Math.random() * particleCanvas.width;
+                    this.y = Math.random() * particleCanvas.height;
+                    this.size = Math.random() * 1.5 + 0.5;
+                    this.speedX = (Math.random() * 0.4 - 0.2);
+                    this.speedY = (Math.random() * 0.4 - 0.2);
+                    this.color = `rgba(212, 175, 55, ${Math.random() * 0.5 + 0.1})`;
+                }
+                update() {
+                    this.x += this.speedX;
+                    this.y += this.speedY;
+                    if (this.x < 0 || this.x > particleCanvas.width) this.x = Math.random() * particleCanvas.width;
+                    if (this.y < 0 || this.y > particleCanvas.height) this.y = Math.random() * particleCanvas.height;
+                }
+                draw() {
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            function createParticles() {
+                const particleCount = Math.floor(particleCanvas.width / 20);
+                for (let i = 0; i < particleCount; i++) {
+                    particles.push(new Particle());
+                }
+            }
+            createParticles();
+
+            function animateParticles() {
+                ctx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+                for (let i = 0; i < particles.length; i++) {
+                    particles[i].update();
+                    particles[i].draw();
+                }
+                requestAnimationFrame(animateParticles);
+            }
+            animateParticles();
+        }
+    </script>
+
 </body>
 </html>
